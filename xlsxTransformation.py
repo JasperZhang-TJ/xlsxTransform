@@ -1,5 +1,7 @@
 import pandas as pd
 
+#用于测试的注释
+
 def generate_nested_mapping(config_path):
     """
     从 config.xlsx 生成嵌套字典结构，并处理元素映射。
