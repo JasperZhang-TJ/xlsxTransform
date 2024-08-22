@@ -37,9 +37,16 @@ def generate_nested_mapping(config_path):
             nested_mapping[(left_sheet, right_sheet)] = {}
 
         for _, row in df.iterrows():
-            left_title = row['LeftTitle'].strip()
-            right_title = row['RightTitle'].strip()
-            trans_type = row['TransType'].strip()
+            try:
+                # 尝试将内容转换为字符串并去除空格
+                left_title = str(row['LeftTitle']).strip()
+                right_title = str(row['RightTitle']).strip()
+                trans_type = str(row['TransType']).strip()
+            except Exception as e:
+                # 打印出导致错误的具体内容和错误信息
+                print(f"Error processing row: {row}")
+                print(f"Exception: {e}")
+                continue  # 跳过当前行，继续处理其他行
 
             if (left_title, right_title) not in nested_mapping[(left_sheet, right_sheet)]:
                 nested_mapping[(left_sheet, right_sheet)][(left_title, right_title)] = {
@@ -54,8 +61,19 @@ def generate_nested_mapping(config_path):
                     if pd.notna(element_pair):
                         left_element, right_element = element_pair.split('-')
                         elements_mapping.append((left_element.strip(), right_element.strip()))
+            if trans_type == 'TranslateOrCopy':
+                for element_pair in row[3:]:  # 从第四列开始处理映射关系
+                    if pd.notna(element_pair):
+                        left_element, right_element = element_pair.split('-')
+                        elements_mapping.append((left_element.strip(), right_element.strip()))
+            if trans_type == 'TranslateOrCopyBy/':
+                for element_pair in row[3:]:  # 从第四列开始处理映射关系
+                    if pd.notna(element_pair):
+                        left_element, right_element = element_pair.split('/')
+                        elements_mapping.append((left_element.strip(), right_element.strip()))
 
     return nested_mapping
+
 
 def reverse_nested_mapping(nested_mapping):
     """
@@ -105,7 +123,7 @@ def read_source_data(source_path):
 
         for title in df.columns:
             # 获取列中的所有元素，将NaN替换为None
-            elements = df[title].fillna('null').tolist()
+            elements = df[title].fillna('').tolist()
             source_data[sheet_name][title] = elements
 
     return source_data
@@ -163,7 +181,15 @@ def map_elements_by_rule(elements, rule, element_mapping):
     elif rule == 'Translate':
         # 使用映射关系翻译元素
         mapping_dict = dict(element_mapping)
-        return [mapping_dict.get(elem, 'null') for elem in elements]
+        return [mapping_dict.get(elem, '') for elem in elements]
+    elif rule == 'TranslateOrCopy':
+        # 尝试翻译元素，找不到翻译就直接复制
+        mapping_dict = dict(element_mapping)
+        return [mapping_dict.get(elem, elem) for elem in elements]
+    elif rule == 'TranslateOrCopyBy/':
+        # 尝试翻译元素，找不到翻译就直接复制
+        mapping_dict = dict(element_mapping)
+        return [mapping_dict.get(elem, elem) for elem in elements]
     else:
         # 可以在这里添加更多的映射规则
         raise ValueError(f"未知的映射规则: {rule}")
@@ -242,7 +268,7 @@ def save_to_excel(new_data, target_path):
 
 def main():
     config_path = 'config.xlsx'  # 配置文件路径
-    target_path = 'source.xlsx'  # 保存新 Excel 文件的路径
+    target_path = 'target.xlsx'  # 保存新 Excel 文件的路径
 
     # 生成嵌套字典
     nested_mapping = generate_nested_mapping(config_path)
@@ -262,13 +288,13 @@ def main():
 
 
     #--------------------------------------读取原表格部分开发
-    source_path = 'target.xlsx'  # 源文件路径
+    source_path = 'sourceNew.xlsx'  # 源文件路径
 
     # 读取源文件的数据
     source_data = read_source_data(source_path)
 
     # 打印结果
-    print("源文件结构和内容",source_data)
+    #print("源文件结构和内容",source_data)
 
     # 识别并打印未映射的部分
     find_unmapped_data(source_data, nested_mapping)
@@ -277,7 +303,7 @@ def main():
     new_data = generate_new_data(source_data, nested_mapping)
 
     # 打印生成的目标数据字典
-    print("生成的目标数据字典：", new_data)
+    #print("生成的目标数据字典：", new_data)
 
     # 将生成的数据保存到新的 Excel 文件中
     save_to_excel(new_data, target_path)
